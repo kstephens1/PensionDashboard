@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { YearProjection, DrawdownInput } from '@/types/pension'
 import { CurrencyInput } from '@/components/common/CurrencyInput'
 import { formatCurrency } from '@/utils/formatters'
+import { getAgeForYear } from '@/constants/defaults'
 
 interface ColWidths {
   taxYear: string
@@ -49,9 +50,14 @@ export const YearRow = memo(function YearRow({
   const isPclsDepleted = pclsRemaining <= 0
   const isSippDepleted = sippRemaining <= 0
 
+  const age = getAgeForYear(year)
+
   return (
     <div className="flex border-b hover:bg-gray-50">
-      <div className={`${colWidths.taxYear} px-4 py-2 font-medium text-gray-900 whitespace-nowrap flex items-center`}>
+      <div
+        className={`${colWidths.taxYear} px-4 py-2 font-medium text-gray-900 whitespace-nowrap flex items-center cursor-help`}
+        title={`Age ${age}`}
+      >
         {taxYear}
       </div>
       <div className={`${colWidths.pclsDrawdown} px-4 py-2 flex items-center`}>

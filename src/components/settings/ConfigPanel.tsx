@@ -4,6 +4,8 @@ import { CurrencyInput } from '@/components/common/CurrencyInput'
 import { PercentageInput } from '@/components/common/PercentageInput'
 import { formatCurrency, formatPercentage } from '@/utils/formatters'
 import { calculatePclsSplit } from '@/constants/defaults'
+import { usePensionStore } from '@/store/pensionStore'
+import { calculateBiasedDrawdownPlan } from '@/utils/drawdownOptimizer'
 
 interface ConfigPanelProps {
   pensionConfig: PensionConfig
@@ -22,6 +24,14 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const { pcls, sipp } = calculatePclsSplit(pensionConfig.dcPot, pensionConfig.pclsCap)
+  const { biasPct, setBiasPct, applyDrawdownPlan } = usePensionStore()
+  const [lastResult, setLastResult] = useState<{ base: number; boosted: number } | null>(null)
+
+  const handleComputePlan = () => {
+    const result = calculateBiasedDrawdownPlan(pensionConfig, biasPct)
+    applyDrawdownPlan(result.plan)
+    setLastResult({ base: result.baseIncome, boosted: result.boostedIncome })
+  }
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -133,6 +143,40 @@ export function ConfigPanel({
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Drawdown Plan Optimizer</h3>
+            <div className="flex items-end gap-4">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First 10 Years Bias
+                </label>
+                <PercentageInput
+                  value={biasPct / 100}
+                  onChange={(value) => setBiasPct(Math.round(value * 100))}
+                  max={1}
+                  className="w-full"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Higher income in first 10 years vs. remaining years
+                </p>
+              </div>
+              <button
+                onClick={handleComputePlan}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              >
+                Compute Biased Plan
+              </button>
+            </div>
+            {lastResult && (
+              <div className="mt-3 text-sm text-gray-600">
+                <p>
+                  Years 1-10: {formatCurrency(lastResult.boosted)}/year |
+                  Years 11+: {formatCurrency(lastResult.base)}/year
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t flex justify-end">

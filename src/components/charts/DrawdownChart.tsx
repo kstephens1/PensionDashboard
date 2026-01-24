@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import type { ChartDataPoint } from '@/types/pension'
 import { formatCurrency, formatCompact } from '@/utils/formatters'
+import { getAgeForYear } from '@/constants/defaults'
 
 interface DrawdownChartProps {
   data: ChartDataPoint[]
@@ -27,9 +28,15 @@ interface CustomTooltipProps {
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (active && payload && payload.length) {
+    // Extract year from taxYear (e.g., "2031/32" -> 2031)
+    const year = label ? parseInt(label.split('/')[0], 10) : null
+    const age = year ? getAgeForYear(year) : null
+
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border">
-        <p className="font-semibold text-gray-900 mb-2">{label}</p>
+        <p className="font-semibold text-gray-900 mb-2">
+          {label} {age !== null && <span className="text-gray-500 font-normal">(Age {age})</span>}
+        </p>
         {payload.map((entry, index) => (
           <p key={index} style={{ color: entry.color }} className="text-sm">
             {entry.name}: {formatCurrency(entry.value)}
@@ -39,6 +46,37 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
     )
   }
   return null
+}
+
+interface CustomXAxisTickProps {
+  x?: number
+  y?: number
+  payload?: { value: string }
+}
+
+function CustomXAxisTick({ x, y, payload }: CustomXAxisTickProps) {
+  if (!payload) return null
+
+  const yearStr = payload.value.split('/')[0]
+  const year = parseInt(yearStr, 10)
+  const age = getAgeForYear(year)
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>Age {age}</title>
+      <text
+        x={0}
+        y={0}
+        dy={16}
+        textAnchor="middle"
+        fill="#666"
+        fontSize={11}
+        style={{ cursor: 'help' }}
+      >
+        {yearStr}
+      </text>
+    </g>
+  )
 }
 
 export function DrawdownChart({ data }: DrawdownChartProps) {
@@ -64,9 +102,8 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey="taxYear"
-          tick={{ fontSize: 11 }}
+          tick={<CustomXAxisTick />}
           interval="preserveStartEnd"
-          tickFormatter={(value) => value.split('/')[0]}
         />
         {/* Left Y-axis for pot balances */}
         <YAxis

@@ -8,6 +8,11 @@ export const PCLS_CAP = 268275
 export const START_YEAR = 2031
 export const END_YEAR = 2071
 export const TOTAL_YEARS = END_YEAR - START_YEAR
+export const START_AGE = 60
+
+export function getAgeForYear(year: number): number {
+  return START_AGE + (year - START_YEAR)
+}
 export const DEFAULT_PCLS_DRAWDOWN = 15000
 export const DEFAULT_SIPP_DRAWDOWN = 35000
 

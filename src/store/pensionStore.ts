@@ -14,10 +14,13 @@ interface PensionState {
   pensionConfig: PensionConfig
   taxConfig: TaxConfig
   drawdownInputs: Map<number, DrawdownInput>
+  biasPct: number
 
   updatePensionConfig: (config: Partial<PensionConfig>) => void
   updateTaxConfig: (config: Partial<TaxConfig>) => void
   updateDrawdown: (year: number, pclsDrawdown: number, sippDrawdown: number) => void
+  setBiasPct: (pct: number) => void
+  applyDrawdownPlan: (plan: Map<number, { pcls: number; sipp: number }>) => void
   resetStore: () => void
 }
 
@@ -42,6 +45,7 @@ export const usePensionStore = create<PensionState>()(
       pensionConfig: DEFAULT_PENSION_CONFIG,
       taxConfig: DEFAULT_TAX_CONFIG,
       drawdownInputs: createInitialDrawdownInputs(),
+      biasPct: 20,
 
       updatePensionConfig: (config) =>
         set((state) => ({
@@ -67,11 +71,30 @@ export const usePensionStore = create<PensionState>()(
           return { drawdownInputs: newInputs }
         }),
 
+      setBiasPct: (pct) => set({ biasPct: pct }),
+
+      applyDrawdownPlan: (plan) =>
+        set((state) => {
+          const newInputs = new Map(state.drawdownInputs)
+          plan.forEach((values, year) => {
+            const existing = newInputs.get(year)
+            if (existing) {
+              newInputs.set(year, {
+                ...existing,
+                pclsDrawdown: values.pcls,
+                sippDrawdown: values.sipp,
+              })
+            }
+          })
+          return { drawdownInputs: newInputs }
+        }),
+
       resetStore: () =>
         set({
           pensionConfig: DEFAULT_PENSION_CONFIG,
           taxConfig: DEFAULT_TAX_CONFIG,
           drawdownInputs: createInitialDrawdownInputs(),
+          biasPct: 20,
         }),
     }),
     {
