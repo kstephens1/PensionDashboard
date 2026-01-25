@@ -5,6 +5,7 @@ import { calculatePclsSplit, START_YEAR, TOTAL_YEARS } from '@/constants/default
 import { calculateMonthlyInterestWithDrawdown } from '@/utils/compoundInterest'
 import { calculateTax } from '@/utils/taxCalculator'
 import { formatTaxYear } from '@/utils/formatters'
+import { getAllDBIncomeForYear } from '@/utils/dbPensionCalculator'
 
 interface DrawdownTotals {
   initialPcls: number
@@ -13,6 +14,7 @@ interface DrawdownTotals {
   sippRemaining: number
   totalPclsDrawn: number
   totalSippDrawn: number
+  totalDBIncome: number
   totalTaxPaid: number
   totalNetIncome: number
 }
@@ -39,6 +41,7 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
     let currentSipp = initialSipp
     let totalPclsDrawn = 0
     let totalSippDrawn = 0
+    let totalDBIncome = 0
     let totalTaxPaid = 0
     let totalNetIncome = 0
 
@@ -71,13 +74,18 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
       )
       const actualSippDrawdown = sippResult.totalDrawdown
 
-      // Calculate tax on SIPP drawdown (PCLS is tax-free)
-      const taxResult = calculateTax(actualSippDrawdown, taxConfig)
+      // Get DB pension income for this tax year
+      const { breakdown: dbPensionIncome, total: yearDBIncome } = getAllDBIncomeForYear(year)
+
+      // Calculate total taxable income (SIPP + DB pensions)
+      // PCLS is tax-free so excluded from tax calculation
+      const totalGrossIncome = actualSippDrawdown + yearDBIncome
+      const taxResult = calculateTax(totalGrossIncome, taxConfig)
       const annualTax = taxResult.totalTax
       const monthlyTax = annualTax / 12
 
-      // Net income = PCLS (tax-free) + SIPP - tax
-      const annualNetIncome = actualPclsDrawdown + actualSippDrawdown - annualTax
+      // Net income = PCLS (tax-free) + SIPP + DB income - tax
+      const annualNetIncome = actualPclsDrawdown + actualSippDrawdown + yearDBIncome - annualTax
       const monthlyNetIncome = annualNetIncome / 12
 
       currentPcls = pclsResult.endBalance
@@ -85,6 +93,7 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
 
       totalPclsDrawn += actualPclsDrawdown
       totalSippDrawn += actualSippDrawdown
+      totalDBIncome += yearDBIncome
       totalTaxPaid += annualTax
       totalNetIncome += annualNetIncome
 
@@ -93,6 +102,9 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
         taxYear,
         pclsDrawdown: actualPclsDrawdown,
         sippDrawdown: actualSippDrawdown,
+        dbPensionIncome,
+        totalDBIncome: yearDBIncome,
+        totalGrossIncome,
         monthlyTax,
         annualTax,
         monthlyNetIncome,
@@ -109,6 +121,7 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
         year,
         taxYear,
         annualNetIncome,
+        totalDBIncome: yearDBIncome,
         pclsRemaining: currentPcls,
         sippRemaining: currentSipp,
       })
@@ -121,6 +134,7 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
       sippRemaining: currentSipp,
       totalPclsDrawn,
       totalSippDrawn,
+      totalDBIncome,
       totalTaxPaid,
       totalNetIncome,
     }

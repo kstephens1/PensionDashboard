@@ -1,3 +1,4 @@
+import React from 'react'
 import {
   LineChart,
   Line,
@@ -7,10 +8,12 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts'
 import type { ChartDataPoint } from '@/types/pension'
-import { formatCurrency, formatCompact } from '@/utils/formatters'
+import { formatCurrency, formatCompact, formatTaxYear } from '@/utils/formatters'
 import { getAgeForYear } from '@/constants/defaults'
+import { getGroupedPensionMilestones } from '@/constants/dbPensions'
 
 interface DrawdownChartProps {
   data: ChartDataPoint[]
@@ -73,6 +76,15 @@ function CustomXAxisTick({ x, y, payload }: CustomXAxisTickProps) {
   )
 }
 
+// Get pension milestones for reference lines
+const pensionMilestones = getGroupedPensionMilestones()
+
+// Colors for milestone lines
+const MILESTONE_COLORS = {
+  db: '#7c3aed',      // Purple for DB pensions
+  state: '#0891b2',   // Cyan for state pensions
+}
+
 export function DrawdownChart({ data }: DrawdownChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -81,6 +93,33 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
       </div>
     )
   }
+
+  // Build reference lines for pension milestones
+  const milestoneLines: React.ReactElement[] = []
+  pensionMilestones.forEach((milestones, year) => {
+    const taxYear = formatTaxYear(year)
+    const names = milestones.map(m => m.name.replace(' Pension', '').replace(' DB', '')).join(', ')
+    const hasState = milestones.some(m => m.type === 'state')
+    const color = hasState ? MILESTONE_COLORS.state : MILESTONE_COLORS.db
+
+    milestoneLines.push(
+      <ReferenceLine
+        key={`milestone-${year}`}
+        x={taxYear}
+        stroke={color}
+        strokeDasharray="5 5"
+        strokeWidth={2}
+        yAxisId="left"
+        label={{
+          value: names,
+          position: 'top',
+          fill: color,
+          fontSize: 10,
+          fontWeight: 500,
+        }}
+      />
+    )
+  })
 
   return (
     <ResponsiveContainer width="100%" height={350}>
@@ -116,6 +155,7 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend />
+        {milestoneLines}
         <Line
           type="monotone"
           dataKey="annualNetIncome"

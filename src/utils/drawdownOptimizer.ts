@@ -1,5 +1,6 @@
 import { calculatePclsSplit, TOTAL_YEARS, START_YEAR } from '@/constants/defaults'
 import type { PensionConfig } from '@/types/pension'
+import { getAllDBIncomeForYear } from './dbPensionCalculator'
 
 export interface DrawdownPlan {
   year: number
@@ -69,15 +70,20 @@ export function calculateBiasedDrawdownPlan(
       remainingSipp *= (1 + annualRate)
     }
 
+    // Get DB pension income for this year
+    // This reduces the amount we need to withdraw from DC pots
+    const { total: dbIncome } = getAllDBIncomeForYear(year)
+    const dcNeeded = Math.max(0, targetIncome - dbIncome)
+
     // Distribute: PCLS first (tax-free), then SIPP
     let pclsDrawdown = 0
     let sippDrawdown = 0
 
     if (remainingPcls > 0) {
-      pclsDrawdown = Math.min(targetIncome, remainingPcls)
-      sippDrawdown = Math.max(0, targetIncome - pclsDrawdown)
+      pclsDrawdown = Math.min(dcNeeded, remainingPcls)
+      sippDrawdown = Math.max(0, dcNeeded - pclsDrawdown)
     } else {
-      sippDrawdown = targetIncome
+      sippDrawdown = dcNeeded
     }
 
     // Cap to available balances

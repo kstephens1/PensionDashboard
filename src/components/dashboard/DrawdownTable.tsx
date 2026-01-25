@@ -15,6 +15,7 @@ const COL_WIDTHS = {
   taxYear: 'w-24',
   pclsDrawdown: 'w-36',
   sippDrawdown: 'w-36',
+  dbIncome: 'w-28',
   yearlyDrawdown: 'w-32',
   monthlyTax: 'w-28',
   monthlyNet: 'w-28',
@@ -48,10 +49,11 @@ export function DrawdownTable({
     (acc, p) => ({
       pclsDrawdown: acc.pclsDrawdown + p.pclsDrawdown,
       sippDrawdown: acc.sippDrawdown + p.sippDrawdown,
+      totalDBIncome: acc.totalDBIncome + p.totalDBIncome,
       annualTax: acc.annualTax + p.annualTax,
       annualNetIncome: acc.annualNetIncome + p.annualNetIncome,
     }),
-    { pclsDrawdown: 0, sippDrawdown: 0, annualTax: 0, annualNetIncome: 0 }
+    { pclsDrawdown: 0, sippDrawdown: 0, totalDBIncome: 0, annualTax: 0, annualNetIncome: 0 }
   )
 
   return (
@@ -68,8 +70,11 @@ export function DrawdownTable({
           <div className={`${COL_WIDTHS.sippDrawdown} px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
             SIPP Drawdown
           </div>
+          <div className={`${COL_WIDTHS.dbIncome} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+            DB/State
+          </div>
           <div className={`${COL_WIDTHS.yearlyDrawdown} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
-            Yearly Drawdown
+            Total Income
           </div>
           <div className={`${COL_WIDTHS.monthlyTax} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
             Monthly Tax
@@ -137,8 +142,11 @@ export function DrawdownTable({
           <div className={`${COL_WIDTHS.sippDrawdown} px-4 py-3 text-gray-900`}>
             {formatCurrency(totals.sippDrawdown)}
           </div>
+          <div className={`${COL_WIDTHS.dbIncome} px-4 py-3 text-right text-purple-700`}>
+            {formatCurrency(totals.totalDBIncome)}
+          </div>
           <div className={`${COL_WIDTHS.yearlyDrawdown} px-4 py-3 text-right text-gray-900`}>
-            {formatCurrency(totals.pclsDrawdown + totals.sippDrawdown)}
+            {formatCurrency(totals.pclsDrawdown + totals.sippDrawdown + totals.totalDBIncome)}
           </div>
           <div className={`${COL_WIDTHS.monthlyTax} px-4 py-3 text-right text-gray-900`}>
             {formatCurrency(totals.annualTax / 12)}

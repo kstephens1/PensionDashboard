@@ -8,6 +8,7 @@ interface ColWidths {
   taxYear: string
   pclsDrawdown: string
   sippDrawdown: string
+  dbIncome: string
   yearlyDrawdown: string
   monthlyTax: string
   monthlyNet: string
@@ -33,6 +34,8 @@ export const YearRow = memo(function YearRow({
     taxYear,
     pclsDrawdown,
     sippDrawdown,
+    dbPensionIncome,
+    totalDBIncome,
     monthlyTax,
     monthlyNetIncome,
     pclsRemaining,
@@ -41,7 +44,8 @@ export const YearRow = memo(function YearRow({
     sippStartOfYear,
   } = projection
 
-  const yearlyDrawdown = pclsDrawdown + sippDrawdown
+  const totalIncome = pclsDrawdown + sippDrawdown + totalDBIncome
+  const [isDBHovered, setIsDBHovered] = useState(false)
 
   // Calculate max drawdown based on start of year balance + potential growth
   const maxPclsDrawdown = pclsStartOfYear * 1.1 // Allow for some growth
@@ -91,8 +95,25 @@ export const YearRow = memo(function YearRow({
           placeholder="£0"
         />
       </div>
+      <div
+        className={`${colWidths.dbIncome} px-4 py-2 text-right whitespace-nowrap flex items-center justify-end relative ${totalDBIncome > 0 ? 'text-purple-700 font-medium' : 'text-gray-400'}`}
+        onMouseEnter={() => setIsDBHovered(true)}
+        onMouseLeave={() => setIsDBHovered(false)}
+      >
+        {formatCurrency(totalDBIncome)}
+        {isDBHovered && dbPensionIncome.length > 0 && (
+          <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-nowrap">
+            {dbPensionIncome.map((p) => (
+              <div key={p.pensionId} className="flex justify-between gap-4">
+                <span>{p.name.replace(' Pension', '')}:</span>
+                <span>{formatCurrency(p.grossIncome)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className={`${colWidths.yearlyDrawdown} px-4 py-2 text-right font-medium text-gray-900 whitespace-nowrap flex items-center justify-end`}>
-        {formatCurrency(yearlyDrawdown)}
+        {formatCurrency(totalIncome)}
       </div>
       <div className={`${colWidths.monthlyTax} px-4 py-2 text-right text-gray-600 whitespace-nowrap flex items-center justify-end`}>
         {formatCurrency(monthlyTax)}
