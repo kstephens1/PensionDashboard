@@ -63,17 +63,11 @@ function CustomXAxisTick({ x, y, payload }: CustomXAxisTickProps) {
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <title>Age {age}</title>
-      <text
-        x={0}
-        y={0}
-        dy={16}
-        textAnchor="middle"
-        fill="#666"
-        fontSize={11}
-        style={{ cursor: 'help' }}
-      >
+      <text x={0} y={0} dy={12} textAnchor="middle" fill="#666" fontSize={11}>
         {yearStr}
+      </text>
+      <text x={0} y={0} dy={24} textAnchor="middle" fill="#9ca3af" fontSize={9}>
+        ({age})
       </text>
     </g>
   )
@@ -96,7 +90,7 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
           top: 5,
           right: 60,
           left: 20,
-          bottom: 5,
+          bottom: 20,
         }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { YearProjection, DrawdownInput } from '@/types/pension'
 import { CurrencyInput } from '@/components/common/CurrencyInput'
 import { formatCurrency } from '@/utils/formatters'
@@ -51,14 +51,21 @@ export const YearRow = memo(function YearRow({
   const isSippDepleted = sippRemaining <= 0
 
   const age = getAgeForYear(year)
+  const [isHovered, setIsHovered] = useState(false)
 
   return (
     <div className="flex border-b hover:bg-gray-50">
       <div
-        className={`${colWidths.taxYear} px-4 py-2 font-medium text-gray-900 whitespace-nowrap flex items-center cursor-help`}
-        title={`Age ${age}`}
+        className={`${colWidths.taxYear} px-4 py-2 font-medium text-gray-900 whitespace-nowrap flex items-center gap-2`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         {taxYear}
+        {isHovered && (
+          <span className="px-1.5 py-0.5 bg-gray-700 text-white text-xs rounded">
+            Age {age}
+          </span>
+        )}
       </div>
       <div className={`${colWidths.pclsDrawdown} px-4 py-2 flex items-center`}>
         <CurrencyInput
