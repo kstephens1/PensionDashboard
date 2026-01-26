@@ -78,8 +78,14 @@ export interface PclsSplit {
 export interface ChartDataPoint {
   year: number
   taxYear: string
+  annualGrossIncome: number
   annualNetIncome: number
   totalDBIncome: number
   pclsRemaining: number
   sippRemaining: number
+}
+
+export interface OptimizerConfig {
+  sippDepletionYear: number
+  sippRemainder: number
 }

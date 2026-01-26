@@ -144,7 +144,7 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
           tickFormatter={(value) => formatCompact(value)}
           tick={{ fontSize: 11 }}
         />
-        {/* Right Y-axis for Annual Net Income with scale £20k - £100k */}
+        {/* Right Y-axis for Annual Gross Income with scale £20k - £100k */}
         <YAxis
           yAxisId="right"
           orientation="right"
@@ -158,8 +158,8 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
         {milestoneLines}
         <Line
           type="monotone"
-          dataKey="annualNetIncome"
-          name="Annual Net Income"
+          dataKey="annualGrossIncome"
+          name="Annual income (gross)"
           stroke="#16a34a"
           strokeWidth={2}
           dot={false}

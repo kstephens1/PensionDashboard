@@ -16,7 +16,8 @@ const COL_WIDTHS = {
   pclsDrawdown: 'w-36',
   sippDrawdown: 'w-36',
   dbIncome: 'w-28',
-  yearlyDrawdown: 'w-32',
+  annualGross: 'w-36',
+  annualNet: 'w-36',
   monthlyTax: 'w-28',
   monthlyNet: 'w-28',
   pclsRemaining: 'w-32',
@@ -73,8 +74,11 @@ export function DrawdownTable({
           <div className={`${COL_WIDTHS.dbIncome} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
             DB/State
           </div>
-          <div className={`${COL_WIDTHS.yearlyDrawdown} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
-            Total Income
+          <div className={`${COL_WIDTHS.annualGross} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+            Annual income (gross)
+          </div>
+          <div className={`${COL_WIDTHS.annualNet} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+            Annual income (net)
           </div>
           <div className={`${COL_WIDTHS.monthlyTax} px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
             Monthly Tax
@@ -145,8 +149,11 @@ export function DrawdownTable({
           <div className={`${COL_WIDTHS.dbIncome} px-4 py-3 text-right text-purple-700`}>
             {formatCurrency(totals.totalDBIncome)}
           </div>
-          <div className={`${COL_WIDTHS.yearlyDrawdown} px-4 py-3 text-right text-gray-900`}>
+          <div className={`${COL_WIDTHS.annualGross} px-4 py-3 text-right text-gray-900`}>
             {formatCurrency(totals.pclsDrawdown + totals.sippDrawdown + totals.totalDBIncome)}
+          </div>
+          <div className={`${COL_WIDTHS.annualNet} px-4 py-3 text-right text-green-700`}>
+            {formatCurrency(totals.annualNetIncome)}
           </div>
           <div className={`${COL_WIDTHS.monthlyTax} px-4 py-3 text-right text-gray-900`}>
             {formatCurrency(totals.annualTax / 12)}

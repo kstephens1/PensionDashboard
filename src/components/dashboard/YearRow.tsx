@@ -9,7 +9,8 @@ interface ColWidths {
   pclsDrawdown: string
   sippDrawdown: string
   dbIncome: string
-  yearlyDrawdown: string
+  annualGross: string
+  annualNet: string
   monthlyTax: string
   monthlyNet: string
   pclsRemaining: string
@@ -38,13 +39,14 @@ export const YearRow = memo(function YearRow({
     totalDBIncome,
     monthlyTax,
     monthlyNetIncome,
+    annualNetIncome,
     pclsRemaining,
     sippRemaining,
     pclsStartOfYear,
     sippStartOfYear,
   } = projection
 
-  const totalIncome = pclsDrawdown + sippDrawdown + totalDBIncome
+  const annualGrossIncome = pclsDrawdown + sippDrawdown + totalDBIncome
   const [isDBHovered, setIsDBHovered] = useState(false)
 
   // Calculate max drawdown based on start of year balance + potential growth
@@ -112,8 +114,11 @@ export const YearRow = memo(function YearRow({
           </div>
         )}
       </div>
-      <div className={`${colWidths.yearlyDrawdown} px-4 py-2 text-right font-medium text-gray-900 whitespace-nowrap flex items-center justify-end`}>
-        {formatCurrency(totalIncome)}
+      <div className={`${colWidths.annualGross} px-4 py-2 text-right font-medium text-gray-900 whitespace-nowrap flex items-center justify-end`}>
+        {formatCurrency(annualGrossIncome)}
+      </div>
+      <div className={`${colWidths.annualNet} px-4 py-2 text-right font-medium text-green-700 whitespace-nowrap flex items-center justify-end`}>
+        {formatCurrency(annualNetIncome)}
       </div>
       <div className={`${colWidths.monthlyTax} px-4 py-2 text-right text-gray-600 whitespace-nowrap flex items-center justify-end`}>
         {formatCurrency(monthlyTax)}

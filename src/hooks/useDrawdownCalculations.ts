@@ -117,9 +117,13 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
 
       projections.push(projection)
 
+      // Gross income = PCLS + SIPP + DB (before tax)
+      const annualGrossIncome = actualPclsDrawdown + actualSippDrawdown + yearDBIncome
+
       chartData.push({
         year,
         taxYear,
+        annualGrossIncome,
         annualNetIncome,
         totalDBIncome: yearDBIncome,
         pclsRemaining: currentPcls,

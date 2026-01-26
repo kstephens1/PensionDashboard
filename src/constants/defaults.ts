@@ -1,4 +1,4 @@
-import type { PensionConfig, TaxConfig } from '@/types/pension'
+import type { PensionConfig, TaxConfig, OptimizerConfig } from '@/types/pension'
 import { getTotalDBLumpSums } from './dbPensions'
 
 export const DEFAULT_DC_POT = 863000
@@ -21,6 +21,14 @@ export const DEFAULT_PENSION_CONFIG: PensionConfig = {
   dcPot: DEFAULT_DC_POT,
   returnRate: DEFAULT_RETURN_RATE,
   pclsCap: PCLS_CAP,
+}
+
+export const DEFAULT_SIPP_DEPLETION_YEAR = 2056
+export const DEFAULT_SIPP_REMAINDER = 100000
+
+export const DEFAULT_OPTIMIZER_CONFIG: OptimizerConfig = {
+  sippDepletionYear: DEFAULT_SIPP_DEPLETION_YEAR,
+  sippRemainder: DEFAULT_SIPP_REMAINDER,
 }
 
 export const DEFAULT_TAX_CONFIG: TaxConfig = {

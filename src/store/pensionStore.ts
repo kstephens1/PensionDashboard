@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PensionConfig, TaxConfig, DrawdownInput } from '@/types/pension'
+import type { PensionConfig, TaxConfig, DrawdownInput, OptimizerConfig } from '@/types/pension'
 import {
   DEFAULT_PENSION_CONFIG,
   DEFAULT_TAX_CONFIG,
+  DEFAULT_OPTIMIZER_CONFIG,
   START_YEAR,
   TOTAL_YEARS,
   DEFAULT_PCLS_DRAWDOWN,
@@ -15,11 +16,13 @@ interface PensionState {
   taxConfig: TaxConfig
   drawdownInputs: Map<number, DrawdownInput>
   biasPct: number
+  optimizerConfig: OptimizerConfig
 
   updatePensionConfig: (config: Partial<PensionConfig>) => void
   updateTaxConfig: (config: Partial<TaxConfig>) => void
   updateDrawdown: (year: number, pclsDrawdown: number, sippDrawdown: number) => void
   setBiasPct: (pct: number) => void
+  updateOptimizerConfig: (config: Partial<OptimizerConfig>) => void
   applyDrawdownPlan: (plan: Map<number, { pcls: number; sipp: number }>) => void
   resetStore: () => void
 }
@@ -46,6 +49,7 @@ export const usePensionStore = create<PensionState>()(
       taxConfig: DEFAULT_TAX_CONFIG,
       drawdownInputs: createInitialDrawdownInputs(),
       biasPct: 20,
+      optimizerConfig: DEFAULT_OPTIMIZER_CONFIG,
 
       updatePensionConfig: (config) =>
         set((state) => ({
@@ -73,6 +77,11 @@ export const usePensionStore = create<PensionState>()(
 
       setBiasPct: (pct) => set({ biasPct: pct }),
 
+      updateOptimizerConfig: (config) =>
+        set((state) => ({
+          optimizerConfig: { ...state.optimizerConfig, ...config },
+        })),
+
       applyDrawdownPlan: (plan) =>
         set((state) => {
           const newInputs = new Map(state.drawdownInputs)
@@ -95,6 +104,7 @@ export const usePensionStore = create<PensionState>()(
           taxConfig: DEFAULT_TAX_CONFIG,
           drawdownInputs: createInitialDrawdownInputs(),
           biasPct: 20,
+          optimizerConfig: DEFAULT_OPTIMIZER_CONFIG,
         }),
     }),
     {
@@ -107,6 +117,14 @@ export const usePensionStore = create<PensionState>()(
           // Convert drawdownInputs array back to Map
           if (parsed.state?.drawdownInputs) {
             parsed.state.drawdownInputs = new Map(parsed.state.drawdownInputs)
+          }
+          // Merge in defaults and remove deprecated PCLS fields
+          if (parsed.state?.optimizerConfig) {
+            const { pclsDepletionYear, pclsRemainder, ...rest } = parsed.state.optimizerConfig
+            parsed.state.optimizerConfig = {
+              ...DEFAULT_OPTIMIZER_CONFIG,
+              ...rest,
+            }
           }
           return parsed
         },
