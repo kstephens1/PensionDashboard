@@ -83,6 +83,10 @@ export interface ChartDataPoint {
   totalDBIncome: number
   pclsRemaining: number
   sippRemaining: number
+  // Income breakdown components
+  pclsDrawdownAmount: number
+  sippDrawdownAmount: number
+  dbPensionIncome: DBPensionYearIncome[]
 }
 
 export interface OptimizerConfig {

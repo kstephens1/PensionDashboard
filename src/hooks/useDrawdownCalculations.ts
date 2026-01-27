@@ -128,6 +128,9 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
         totalDBIncome: yearDBIncome,
         pclsRemaining: currentPcls,
         sippRemaining: currentSipp,
+        pclsDrawdownAmount: actualPclsDrawdown,
+        sippDrawdownAmount: actualSippDrawdown,
+        dbPensionIncome,
       })
     }
 
