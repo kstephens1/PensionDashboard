@@ -3,22 +3,24 @@ import { DB_PENSIONS } from '@/constants/dbPensions'
 
 /**
  * Calculates indexed income for a DB pension in a given year
- * Applies compound growth from the start year using the index rate
+ * annualIncome represents today's value, with compound growth applied from today
  */
 export function calculateIndexedIncome(pension: DBPension, year: number): number {
   if (year < pension.startYear) {
     return 0
   }
 
-  // Calculate years of indexation
-  // Indexation starts from the second year of payment
-  const yearsOfGrowth = year - pension.startYear
+  // Base year for inflation calculations (today's date)
+  const baseYear = new Date().getFullYear()
+
+  // Total years of growth from today to the target year
+  const yearsOfGrowth = year - baseYear
 
   if (yearsOfGrowth <= 0) {
     return pension.annualIncome
   }
 
-  // Compound growth: income * (1 + rate)^years
+  // Compound growth from today: income * (1 + rate)^years
   return pension.annualIncome * Math.pow(1 + pension.indexRate, yearsOfGrowth)
 }
 
