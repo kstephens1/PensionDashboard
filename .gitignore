@@ -28,3 +28,8 @@ dist-ssr
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log

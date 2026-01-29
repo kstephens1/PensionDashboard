@@ -6,6 +6,9 @@ export const DEFAULT_RETURN_RATE = 0.04
 export const PCLS_PERCENTAGE = 0.25
 export const PCLS_CAP = 268275
 
+export const DEFAULT_INFLATION_RATE = 0.0326  // 3.26% default
+export const CURRENT_YEAR = 2025  // Baseline year for inflation calculations
+
 export const START_YEAR = 2031
 export const END_YEAR = 2071
 export const TOTAL_YEARS = END_YEAR - START_YEAR

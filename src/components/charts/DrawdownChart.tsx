@@ -17,6 +17,7 @@ import { usePensionStore } from '@/store/pensionStore'
 
 interface DrawdownChartProps {
   data: ChartDataPoint[]
+  showRealTerms?: boolean
 }
 
 interface CustomTooltipProps {
@@ -29,9 +30,10 @@ interface CustomTooltipProps {
     payload: ChartDataPoint
   }>
   label?: string
+  showRealTerms?: boolean
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, showRealTerms }: CustomTooltipProps) {
   if (active && payload && payload.length) {
     // Extract year from taxYear (e.g., "2031/32" -> 2031)
     const year = label ? parseInt(label.split('/')[0], 10) : null
@@ -44,6 +46,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
       <div className="bg-white p-4 rounded-lg shadow-lg border min-w-[200px]">
         <p className="font-semibold text-gray-900 mb-2">
           {label} {age !== null && <span className="text-gray-500 font-normal">(Age {age})</span>}
+          {showRealTerms && <span className="text-xs text-blue-600 ml-1">(today's money)</span>}
         </p>
         {payload.map((entry) => {
           // Check if this is the annual income line
@@ -146,7 +149,7 @@ function CustomReferenceLabel({ viewBox, value, fill, verticalOffset = 0 }: Cust
   )
 }
 
-export function DrawdownChart({ data }: DrawdownChartProps) {
+export function DrawdownChart({ data, showRealTerms = false }: DrawdownChartProps) {
   const { optimizerConfig } = usePensionStore()
 
   if (!data || data.length === 0) {
@@ -264,7 +267,7 @@ export function DrawdownChart({ data }: DrawdownChartProps) {
           tick={{ fontSize: 11, fill: '#16a34a' }}
           stroke="#16a34a"
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip showRealTerms={showRealTerms} />} />
         <Legend />
         {milestoneLines}
         <Line

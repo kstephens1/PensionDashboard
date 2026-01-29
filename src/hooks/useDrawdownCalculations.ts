@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { usePensionStore } from '@/store/pensionStore'
 import type { YearProjection, ChartDataPoint } from '@/types/pension'
-import { calculatePclsSplit, START_YEAR, TOTAL_YEARS } from '@/constants/defaults'
+import { calculatePclsSplit, START_YEAR, TOTAL_YEARS, CURRENT_YEAR } from '@/constants/defaults'
 import { calculateMonthlyInterestWithDrawdown } from '@/utils/compoundInterest'
 import { calculateTax } from '@/utils/taxCalculator'
 import { formatTaxYear } from '@/utils/formatters'
 import { getAllDBIncomeForYear } from '@/utils/dbPensionCalculator'
+import { adjustForInflation } from '@/utils/inflationAdjuster'
 
 interface DrawdownTotals {
   initialPcls: number
@@ -26,7 +27,7 @@ interface DrawdownCalculationsResult {
 }
 
 export function useDrawdownCalculations(): DrawdownCalculationsResult {
-  const { pensionConfig, taxConfig, drawdownInputs } = usePensionStore()
+  const { pensionConfig, taxConfig, drawdownInputs, showRealTerms, inflationRate } = usePensionStore()
 
   return useMemo(() => {
     const { pcls: initialPcls, sipp: initialSipp } = calculatePclsSplit(
@@ -120,17 +121,24 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
       // Gross income = PCLS + SIPP + DB (before tax)
       const annualGrossIncome = actualPclsDrawdown + actualSippDrawdown + yearDBIncome
 
+      // Apply inflation adjustment if showRealTerms is enabled
+      const adjust = (value: number) =>
+        showRealTerms ? adjustForInflation(value, year, CURRENT_YEAR, inflationRate) : value
+
       chartData.push({
         year,
         taxYear,
-        annualGrossIncome,
-        annualNetIncome,
-        totalDBIncome: yearDBIncome,
-        pclsRemaining: currentPcls,
-        sippRemaining: currentSipp,
-        pclsDrawdownAmount: actualPclsDrawdown,
-        sippDrawdownAmount: actualSippDrawdown,
-        dbPensionIncome,
+        annualGrossIncome: adjust(annualGrossIncome),
+        annualNetIncome: adjust(annualNetIncome),
+        totalDBIncome: adjust(yearDBIncome),
+        pclsRemaining: adjust(currentPcls),
+        sippRemaining: adjust(currentSipp),
+        pclsDrawdownAmount: adjust(actualPclsDrawdown),
+        sippDrawdownAmount: adjust(actualSippDrawdown),
+        dbPensionIncome: dbPensionIncome.map(pension => ({
+          ...pension,
+          grossIncome: adjust(pension.grossIncome),
+        })),
       })
     }
 
@@ -147,5 +155,5 @@ export function useDrawdownCalculations(): DrawdownCalculationsResult {
     }
 
     return { projections, totals, chartData }
-  }, [pensionConfig, taxConfig, drawdownInputs])
+  }, [pensionConfig, taxConfig, drawdownInputs, showRealTerms, inflationRate])
 }

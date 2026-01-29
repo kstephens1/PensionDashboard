@@ -33,7 +33,7 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const { pcls, sipp } = calculatePclsSplit(pensionConfig.dcPot, pensionConfig.pclsCap)
-  const { biasPct, setBiasPct, optimizerConfig, updateOptimizerConfig, applyDrawdownPlan } = usePensionStore()
+  const { biasPct, setBiasPct, optimizerConfig, updateOptimizerConfig, applyDrawdownPlan, inflationRate, setInflationRate } = usePensionStore()
   const [lastResult, setLastResult] = useState<OptimizerResultState | null>(null)
 
   const handleComputePlan = () => {
@@ -128,6 +128,21 @@ export function ConfigPanel({
               />
               <p className="mt-2 text-xs text-gray-500">
                 Tax-free income threshold
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Inflation Rate
+              </label>
+              <PercentageInput
+                value={inflationRate}
+                onChange={setInflationRate}
+                max={0.1}
+                className="w-full"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                For "today's money" calculations
               </p>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   DEFAULT_PENSION_CONFIG,
   DEFAULT_TAX_CONFIG,
   DEFAULT_OPTIMIZER_CONFIG,
+  DEFAULT_INFLATION_RATE,
   START_YEAR,
   TOTAL_YEARS,
   DEFAULT_PCLS_DRAWDOWN,
@@ -17,6 +18,8 @@ interface PensionState {
   drawdownInputs: Map<number, DrawdownInput>
   biasPct: number
   optimizerConfig: OptimizerConfig
+  showRealTerms: boolean
+  inflationRate: number
 
   updatePensionConfig: (config: Partial<PensionConfig>) => void
   updateTaxConfig: (config: Partial<TaxConfig>) => void
@@ -24,6 +27,8 @@ interface PensionState {
   setBiasPct: (pct: number) => void
   updateOptimizerConfig: (config: Partial<OptimizerConfig>) => void
   applyDrawdownPlan: (plan: Map<number, { pcls: number; sipp: number }>) => void
+  setShowRealTerms: (value: boolean) => void
+  setInflationRate: (rate: number) => void
   resetStore: () => void
 }
 
@@ -50,6 +55,8 @@ export const usePensionStore = create<PensionState>()(
       drawdownInputs: createInitialDrawdownInputs(),
       biasPct: 20,
       optimizerConfig: DEFAULT_OPTIMIZER_CONFIG,
+      showRealTerms: false,
+      inflationRate: DEFAULT_INFLATION_RATE,
 
       updatePensionConfig: (config) =>
         set((state) => ({
@@ -98,6 +105,10 @@ export const usePensionStore = create<PensionState>()(
           return { drawdownInputs: newInputs }
         }),
 
+      setShowRealTerms: (value) => set({ showRealTerms: value }),
+
+      setInflationRate: (rate) => set({ inflationRate: rate }),
+
       resetStore: () =>
         set({
           pensionConfig: DEFAULT_PENSION_CONFIG,
@@ -105,6 +116,8 @@ export const usePensionStore = create<PensionState>()(
           drawdownInputs: createInitialDrawdownInputs(),
           biasPct: 20,
           optimizerConfig: DEFAULT_OPTIMIZER_CONFIG,
+          showRealTerms: false,
+          inflationRate: DEFAULT_INFLATION_RATE,
         }),
     }),
     {
