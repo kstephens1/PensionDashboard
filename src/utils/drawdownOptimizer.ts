@@ -1,6 +1,27 @@
-import { calculatePclsSplit, START_YEAR } from '@/constants/defaults'
+import { calculatePclsSplit, START_YEAR, TOTAL_YEARS } from '@/constants/defaults'
 import type { PensionConfig, OptimizerConfig } from '@/types/pension'
 import { getAllDBIncomeForYear } from './dbPensionCalculator'
+import { calculateMonthlyInterestWithDrawdown } from './compoundInterest'
+
+/**
+ * Applies monthly compounding with drawdown for a year, matching useDrawdownCalculations.
+ * Returns { endBalance, actualDrawdown }
+ */
+function applyYearWithMonthlyCompounding(
+  startBalance: number,
+  annualRate: number,
+  requestedDrawdown: number
+): { endBalance: number; actualDrawdown: number } {
+  const result = calculateMonthlyInterestWithDrawdown(
+    startBalance,
+    annualRate,
+    requestedDrawdown / 12
+  )
+  return {
+    endBalance: result.endBalance,
+    actualDrawdown: result.totalDrawdown,
+  }
+}
 
 export interface DrawdownPlan {
   year: number
@@ -22,7 +43,9 @@ const BOOSTED_YEARS = 10
 /**
  * Calculates an optimized drawdown plan that:
  * 1. Depletes PCLS to £0 by sippDepletionYear (fixed annual amount, tax-optimal)
- * 2. Depletes SIPP to a target remainder by sippDepletionYear (with bias for early years)
+ * 2. Depletes SIPP to a target remainder by sippDepletionYear using two phases:
+ *    - Phase 1 (boosted years): Higher withdrawals to fill income gap
+ *    - Phase 2 (remaining years): Fixed withdrawals to ensure SIPP depletion
  *
  * PCLS is always depleted to £0 by the SIPP depletion year because:
  * - PCLS is tax-free, SIPP is taxable
@@ -47,9 +70,10 @@ export function calculateBiasedDrawdownPlan(
   const pclsDepletionYear = sippDepletionYear
   const pclsTargetRemainder = 0
 
-  // Calculate number of years for each pot
-  const sippTotalYears = sippDepletionYear - START_YEAR
-  const pclsTotalYears = pclsDepletionYear - START_YEAR
+  // Calculate number of years for each pot (inclusive of depletion year)
+  // e.g., 2031 to 2054 = 24 years of withdrawals
+  const sippTotalYears = sippDepletionYear - START_YEAR + 1
+  const pclsTotalYears = pclsDepletionYear - START_YEAR + 1
   const boostedYearsActual = Math.min(BOOSTED_YEARS, sippTotalYears)
 
   // Step 1: Find the fixed annual PCLS withdrawal that depletes PCLS to target by pclsDepletionYear
@@ -60,74 +84,82 @@ export function calculateBiasedDrawdownPlan(
     pclsTargetRemainder
   )
 
-  // Step 2: Find the base SIPP withdrawal that achieves target SIPP remainder
-  // accounting for the fixed PCLS drawdown schedule
-  const baseIncome = findOptimalSippWithdrawal(
+  // Step 2: Find the boosted income for Phase 1 that maximizes early withdrawals
+  // while still allowing SIPP to deplete by target year
+  const { boostedIncome, phase2SippWithdrawal } = findOptimalTwoPhaseWithdrawal(
     initialPcls,
     initialSipp,
     annualRate,
     sippTotalYears,
     boostedYearsActual,
-    biasMultiplier,
     sippTargetRemainder,
     pclsAnnualDrawdown,
     pclsTotalYears
   )
 
-  const boostedIncome = baseIncome * biasMultiplier
+  const baseIncome = boostedIncome / biasMultiplier
 
-  // Build the drawdown plan with simulation
+  // Build the drawdown plan with simulation using monthly compounding
+  // This matches the actual simulation in useDrawdownCalculations
+  // IMPORTANT: Plan must cover ALL years (not just to depletion year) to override defaults
   const plan = new Map<number, { pcls: number; sipp: number }>()
   let remainingPcls = initialPcls
   let remainingSipp = initialSipp
   let projectedPclsAtDepletion = 0
+  let projectedSippAtDepletion = 0
 
-  for (let i = 0; i < sippTotalYears; i++) {
+  for (let i = 0; i < TOTAL_YEARS; i++) {
     const year = START_YEAR + i
-    const targetIncome = i < boostedYearsActual ? boostedIncome : baseIncome
-
-    // Apply growth at start of year (except first year)
-    if (i > 0) {
-      remainingPcls *= (1 + annualRate)
-      remainingSipp *= (1 + annualRate)
-    }
+    const isWithinDepletionPeriod = i < sippTotalYears
+    const isPhase1 = i < boostedYearsActual
 
     // Get DB pension income for this year
     const { total: dbIncome } = getAllDBIncomeForYear(year)
 
-    // PCLS: Fixed annual amount (independent of DB income) until depletion year
-    let pclsDrawdown = 0
-    if (i < pclsTotalYears && remainingPcls > 0) {
-      pclsDrawdown = Math.min(pclsAnnualDrawdown, remainingPcls)
+    // After depletion year, set drawdowns to £0
+    if (!isWithinDepletionPeriod) {
+      plan.set(year, { pcls: 0, sipp: 0 })
+      continue
     }
 
-    // SIPP: Fills remaining income gap after DB and PCLS
-    const incomeFromDbAndPcls = dbIncome + pclsDrawdown
-    const sippNeeded = Math.max(0, targetIncome - incomeFromDbAndPcls)
-    const sippDrawdown = Math.min(sippNeeded, Math.max(0, remainingSipp))
+    // Determine requested PCLS drawdown
+    let requestedPclsDrawdown = 0
+    if (i < pclsTotalYears && remainingPcls > 0) {
+      requestedPclsDrawdown = pclsAnnualDrawdown
+    }
+
+    // Determine requested SIPP drawdown
+    let requestedSippDrawdown: number
+    if (isPhase1) {
+      // Phase 1: Fill income gap to reach boosted income target
+      // Estimate PCLS contribution (may be less if pot is low)
+      const estimatedPclsDrawdown = Math.min(requestedPclsDrawdown, remainingPcls)
+      const incomeFromDbAndPcls = dbIncome + estimatedPclsDrawdown
+      requestedSippDrawdown = Math.max(0, boostedIncome - incomeFromDbAndPcls)
+    } else {
+      // Phase 2: Fixed withdrawal to ensure SIPP depletion
+      requestedSippDrawdown = phase2SippWithdrawal
+    }
+
+    // Apply monthly compounding with drawdowns (matches useDrawdownCalculations)
+    const pclsResult = applyYearWithMonthlyCompounding(remainingPcls, annualRate, requestedPclsDrawdown)
+    const sippResult = applyYearWithMonthlyCompounding(remainingSipp, annualRate, requestedSippDrawdown)
 
     // Update remaining balances
-    remainingPcls = Math.max(0, remainingPcls - pclsDrawdown)
-    remainingSipp = Math.max(0, remainingSipp - sippDrawdown)
-
-    // Capture PCLS balance at depletion year
-    if (i === pclsTotalYears - 1) {
-      projectedPclsAtDepletion = Math.round(remainingPcls * (1 + annualRate))
-    }
+    remainingPcls = pclsResult.endBalance
+    remainingSipp = sippResult.endBalance
 
     plan.set(year, {
-      pcls: Math.round(pclsDrawdown),
-      sipp: Math.round(sippDrawdown),
+      pcls: Math.round(pclsResult.actualDrawdown),
+      sipp: Math.round(sippResult.actualDrawdown),
     })
-  }
 
-  // If PCLS depletion year is same as SIPP depletion year, capture at end
-  if (pclsTotalYears >= sippTotalYears) {
-    projectedPclsAtDepletion = Math.round(remainingPcls * (1 + annualRate))
+    // Capture balances at depletion year
+    if (i === sippTotalYears - 1) {
+      projectedSippAtDepletion = Math.round(remainingSipp)
+      projectedPclsAtDepletion = Math.round(remainingPcls)
+    }
   }
-
-  // Apply final year growth for projected SIPP balance
-  const projectedSippAtDepletion = Math.round(remainingSipp * (1 + annualRate))
 
   return {
     plan,
@@ -187,6 +219,7 @@ function findOptimalPclsWithdrawal(
 
 /**
  * Simulates PCLS withdrawals and returns final balance.
+ * Uses monthly compounding to match useDrawdownCalculations.
  */
 function simulatePclsWithdrawals(
   initialPcls: number,
@@ -197,96 +230,231 @@ function simulatePclsWithdrawals(
   let pcls = initialPcls
 
   for (let i = 0; i < totalYears; i++) {
-    // Apply growth at start of year (except first year)
-    if (i > 0) {
-      pcls *= (1 + annualRate)
-    }
-
-    // Withdraw
-    pcls = Math.max(0, pcls - annualWithdrawal)
+    const result = applyYearWithMonthlyCompounding(pcls, annualRate, annualWithdrawal)
+    pcls = result.endBalance
   }
-
-  // Apply final year growth
-  pcls *= (1 + annualRate)
 
   return pcls
 }
 
 /**
- * Uses binary search to find the base income withdrawal rate that achieves
- * the target SIPP remainder at depletion year, accounting for fixed PCLS drawdown.
+ * Finds optimal two-phase withdrawal strategy:
+ * Phase 1: Boosted income-based withdrawals for early years
+ * Phase 2: Fixed withdrawals to ensure SIPP depletion by target year
+ *
+ * Returns the boosted income target and the Phase 2 fixed SIPP withdrawal.
  */
-function findOptimalSippWithdrawal(
+function findOptimalTwoPhaseWithdrawal(
   initialPcls: number,
   initialSipp: number,
   annualRate: number,
   totalYears: number,
   boostedYears: number,
-  biasMultiplier: number,
   targetRemainder: number,
   pclsAnnualDrawdown: number,
   pclsTotalYears: number
-): number {
-  // Calculate weighted years (boosted years count more due to higher withdrawal)
-  const effectiveYears = boostedYears * biasMultiplier + (totalYears - boostedYears)
+): { boostedIncome: number; phase2SippWithdrawal: number } {
+  const phase2Years = totalYears - boostedYears
 
-  // Initial estimate - rough approximation based on SIPP only
-  const withdrawable = initialSipp - targetRemainder / Math.pow(1 + annualRate, totalYears)
-  const initialEstimate = Math.max(10000, withdrawable / effectiveYears)
-
-  // Binary search for precise value
-  let low = initialEstimate * 0.1
-  let high = initialEstimate * 5
-  let bestWithdrawal = initialEstimate
-
-  for (let iteration = 0; iteration < 50; iteration++) {
-    const mid = (low + high) / 2
-    const result = simulateSippWithdrawals(
+  // If no phase 2 years, use original income-based approach
+  if (phase2Years <= 0) {
+    const boostedIncome = findBoostedIncomeForTarget(
       initialPcls,
       initialSipp,
       annualRate,
       totalYears,
       boostedYears,
-      biasMultiplier,
-      mid,
-      START_YEAR,
+      targetRemainder,
+      pclsAnnualDrawdown,
+      pclsTotalYears
+    )
+    return { boostedIncome, phase2SippWithdrawal: 0 }
+  }
+
+  // Binary search for the boosted income that, combined with phase 2 fixed withdrawals,
+  // depletes SIPP to target
+  // Start with a wide range - income can vary significantly based on DB pensions
+  let low = 20000
+  let high = 200000
+  let bestBoostedIncome = 80000
+  let bestPhase2Withdrawal = 0
+
+  // We want to find the boosted income that results in hitting the target SIPP.
+  // Higher target remainder should result in lower boosted income (withdraw less).
+  // Lower target remainder should result in higher boosted income (withdraw more).
+  for (let iteration = 0; iteration < 50; iteration++) {
+    const boostedIncome = (low + high) / 2
+
+    // Simulate Phase 1 to find SIPP balance at end of boosted years
+    const sippAtPhase2Start = simulatePhase1(
+      initialPcls,
+      initialSipp,
+      annualRate,
+      boostedYears,
+      boostedIncome,
       pclsAnnualDrawdown,
       pclsTotalYears
     )
 
-    if (Math.abs(result - targetRemainder) < 100) {
-      bestWithdrawal = mid
+    // Calculate fixed Phase 2 withdrawal to deplete remaining SIPP
+    const phase2Withdrawal = calculateFixedWithdrawal(
+      sippAtPhase2Start,
+      annualRate,
+      phase2Years,
+      targetRemainder
+    )
+
+    // Simulate full plan to verify
+    const finalSipp = simulateTwoPhase(
+      initialPcls,
+      initialSipp,
+      annualRate,
+      totalYears,
+      boostedYears,
+      boostedIncome,
+      phase2Withdrawal,
+      pclsAnnualDrawdown,
+      pclsTotalYears
+    )
+
+    if (Math.abs(finalSipp - targetRemainder) < 100) {
+      bestBoostedIncome = boostedIncome
+      bestPhase2Withdrawal = phase2Withdrawal
       break
     }
 
-    if (result > targetRemainder) {
-      // SIPP too high, not withdrawing enough, increase
-      low = mid
+    // Higher boosted income → more withdrawn in Phase 1 → lower SIPP at Phase 2 start
+    // → lower Phase 2 withdrawal needed → lower final SIPP
+    if (finalSipp > targetRemainder) {
+      // Final SIPP too high, need to withdraw more → increase boosted income
+      low = boostedIncome
     } else {
-      // SIPP too low, withdrawing too much, decrease
-      high = mid
+      // Final SIPP too low, withdrawing too much → decrease boosted income
+      high = boostedIncome
     }
 
-    bestWithdrawal = mid
+    bestBoostedIncome = boostedIncome
+    bestPhase2Withdrawal = phase2Withdrawal
   }
 
-  return bestWithdrawal
+  // Recalculate phase2 withdrawal for the best boosted income found
+  const finalSippAtPhase2Start = simulatePhase1(
+    initialPcls,
+    initialSipp,
+    annualRate,
+    boostedYears,
+    bestBoostedIncome,
+    pclsAnnualDrawdown,
+    pclsTotalYears
+  )
+  bestPhase2Withdrawal = calculateFixedWithdrawal(
+    finalSippAtPhase2Start,
+    annualRate,
+    phase2Years,
+    targetRemainder
+  )
+
+  return { boostedIncome: bestBoostedIncome, phase2SippWithdrawal: bestPhase2Withdrawal }
 }
 
 /**
- * Simulates withdrawals with fixed PCLS drawdown and returns final SIPP balance.
- * PCLS is drawn as a fixed amount regardless of DB income.
- * SIPP fills the remaining gap to reach target income.
+ * Simulates Phase 1 (boosted years) and returns SIPP balance at end of Phase 1.
+ * Uses monthly compounding to match useDrawdownCalculations.
  */
-function simulateSippWithdrawals(
+function simulatePhase1(
+  initialPcls: number,
+  initialSipp: number,
+  annualRate: number,
+  boostedYears: number,
+  boostedIncome: number,
+  pclsAnnualDrawdown: number,
+  pclsTotalYears: number
+): number {
+  let pcls = initialPcls
+  let sipp = initialSipp
+
+  for (let i = 0; i < boostedYears; i++) {
+    const year = START_YEAR + i
+
+    // DB income
+    const { total: dbIncome } = getAllDBIncomeForYear(year)
+
+    // Determine requested PCLS drawdown
+    const requestedPclsDrawdown = i < pclsTotalYears ? pclsAnnualDrawdown : 0
+
+    // Apply PCLS with monthly compounding
+    const pclsResult = applyYearWithMonthlyCompounding(pcls, annualRate, requestedPclsDrawdown)
+    const actualPclsDrawdown = pclsResult.actualDrawdown
+    pcls = pclsResult.endBalance
+
+    // SIPP fills income gap
+    const incomeFromDbAndPcls = dbIncome + actualPclsDrawdown
+    const sippNeeded = Math.max(0, boostedIncome - incomeFromDbAndPcls)
+
+    // Apply SIPP with monthly compounding
+    const sippResult = applyYearWithMonthlyCompounding(sipp, annualRate, sippNeeded)
+    sipp = sippResult.endBalance
+  }
+
+  return sipp
+}
+
+/**
+ * Calculates fixed annual withdrawal to deplete a pot from startBalance to targetRemainder.
+ * Uses the annuity formula for initial estimate, then binary search with monthly compounding
+ * to match useDrawdownCalculations.
+ */
+function calculateFixedWithdrawal(
+  startBalance: number,
+  annualRate: number,
+  years: number,
+  targetRemainder: number
+): number {
+  if (years <= 0) return 0
+  if (startBalance <= targetRemainder) return 0
+
+  // Use annuity formula to calculate initial estimate for sustainable withdrawal
+  // PV = W * (1 - (1+r)^-n) / r
+  // Solving for W: W = (PV - FV/(1+r)^n) * r / (1 - (1+r)^-n)
+  // Simplified for FV (targetRemainder):
+  const amountToWithdraw = startBalance - targetRemainder / Math.pow(1 + annualRate, years)
+  const annuityFactor = (1 - Math.pow(1 + annualRate, -years)) / annualRate
+  const annuityEstimate = amountToWithdraw / annuityFactor
+
+  // Binary search around the annuity estimate (±50% range to account for monthly compounding)
+  let low = annuityEstimate * 0.5
+  let high = annuityEstimate * 1.5
+
+  for (let iter = 0; iter < 50; iter++) {
+    const W = (low + high) / 2
+    let balance = startBalance
+
+    // Simulate Phase 2 with monthly compounding
+    for (let i = 0; i < years; i++) {
+      const result = applyYearWithMonthlyCompounding(balance, annualRate, W)
+      balance = result.endBalance
+    }
+
+    if (Math.abs(balance - targetRemainder) < 100) return W
+    if (balance > targetRemainder) low = W
+    else high = W
+  }
+
+  return (low + high) / 2
+}
+
+/**
+ * Simulates full two-phase withdrawal and returns final SIPP balance.
+ * Uses monthly compounding to match useDrawdownCalculations.
+ */
+function simulateTwoPhase(
   initialPcls: number,
   initialSipp: number,
   annualRate: number,
   totalYears: number,
   boostedYears: number,
-  biasMultiplier: number,
-  baseIncome: number,
-  startYear: number,
+  boostedIncome: number,
+  phase2Withdrawal: number,
   pclsAnnualDrawdown: number,
   pclsTotalYears: number
 ): number {
@@ -294,37 +462,84 @@ function simulateSippWithdrawals(
   let sipp = initialSipp
 
   for (let i = 0; i < totalYears; i++) {
-    const year = startYear + i
-
-    // Apply growth at start of year (except first year)
-    if (i > 0) {
-      pcls *= (1 + annualRate)
-      sipp *= (1 + annualRate)
-    }
-
-    // Determine target income for this year
-    const targetIncome = i < boostedYears
-      ? baseIncome * biasMultiplier
-      : baseIncome
+    const year = START_YEAR + i
+    const isPhase1 = i < boostedYears
 
     // DB income
     const { total: dbIncome } = getAllDBIncomeForYear(year)
 
-    // PCLS: Fixed annual amount until depletion year
-    let pclsWithdraw = 0
-    if (i < pclsTotalYears && pcls > 0) {
-      pclsWithdraw = Math.min(pclsAnnualDrawdown, pcls)
-      pcls = Math.max(0, pcls - pclsWithdraw)
+    // Determine requested PCLS drawdown
+    const requestedPclsDrawdown = i < pclsTotalYears ? pclsAnnualDrawdown : 0
+
+    // Apply PCLS with monthly compounding
+    const pclsResult = applyYearWithMonthlyCompounding(pcls, annualRate, requestedPclsDrawdown)
+    const actualPclsDrawdown = pclsResult.actualDrawdown
+    pcls = pclsResult.endBalance
+
+    // Determine requested SIPP drawdown
+    let requestedSippDrawdown: number
+    if (isPhase1) {
+      // Phase 1: Fill income gap
+      const incomeFromDbAndPcls = dbIncome + actualPclsDrawdown
+      requestedSippDrawdown = Math.max(0, boostedIncome - incomeFromDbAndPcls)
+    } else {
+      // Phase 2: Fixed withdrawal
+      requestedSippDrawdown = phase2Withdrawal
     }
 
-    // SIPP: Fills remaining income gap
-    const incomeFromDbAndPcls = dbIncome + pclsWithdraw
-    const sippNeeded = Math.max(0, targetIncome - incomeFromDbAndPcls)
-    sipp = Math.max(0, sipp - sippNeeded)
+    // Apply SIPP with monthly compounding
+    const sippResult = applyYearWithMonthlyCompounding(sipp, annualRate, requestedSippDrawdown)
+    sipp = sippResult.endBalance
   }
 
-  // Apply final year growth
-  sipp *= (1 + annualRate)
-
   return sipp
+}
+
+/**
+ * Fallback: find boosted income using income-based approach (for cases with no Phase 2).
+ */
+function findBoostedIncomeForTarget(
+  initialPcls: number,
+  initialSipp: number,
+  annualRate: number,
+  totalYears: number,
+  boostedYears: number,
+  targetRemainder: number,
+  pclsAnnualDrawdown: number,
+  pclsTotalYears: number
+): number {
+  // Wide search range to accommodate various scenarios
+  let low = 20000
+  let high = 200000
+  let bestIncome = 80000
+
+  for (let iteration = 0; iteration < 50; iteration++) {
+    const income = (low + high) / 2
+    const result = simulateTwoPhase(
+      initialPcls,
+      initialSipp,
+      annualRate,
+      totalYears,
+      boostedYears,
+      income,
+      0,
+      pclsAnnualDrawdown,
+      pclsTotalYears
+    )
+
+    if (Math.abs(result - targetRemainder) < 100) {
+      bestIncome = income
+      break
+    }
+
+    if (result > targetRemainder) {
+      low = income
+    } else {
+      high = income
+    }
+
+    bestIncome = income
+  }
+
+  return bestIncome
 }

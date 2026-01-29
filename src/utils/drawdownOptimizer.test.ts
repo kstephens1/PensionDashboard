@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { calculateBiasedDrawdownPlan } from './drawdownOptimizer'
 import type { PensionConfig, OptimizerConfig } from '@/types/pension'
-import { START_YEAR } from '@/constants/defaults'
+import { START_YEAR, TOTAL_YEARS, END_YEAR } from '@/constants/defaults'
 
 const DEFAULT_PENSION_CONFIG: PensionConfig = {
   dcPot: 863000,
@@ -39,7 +39,7 @@ describe('calculateBiasedDrawdownPlan', () => {
       expect(result.boostedIncome).toBeCloseTo(result.baseIncome * 1.2, -2) // within £100
     })
 
-    it('plan covers years from START_YEAR to depletionYear', () => {
+    it('plan covers all years from START_YEAR to END_YEAR', () => {
       const depletionYear = 2056
       const optimizerConfig: OptimizerConfig = {
         ...DEFAULT_OPTIMIZER_CONFIG,
@@ -54,11 +54,18 @@ describe('calculateBiasedDrawdownPlan', () => {
 
       const years = Array.from(result.plan.keys())
       expect(years[0]).toBe(START_YEAR)
-      expect(years[years.length - 1]).toBe(depletionYear - 1)
-      expect(years.length).toBe(depletionYear - START_YEAR)
+      // Plan covers all 40 years to properly override defaults
+      expect(years[years.length - 1]).toBe(END_YEAR - 1)
+      expect(years.length).toBe(TOTAL_YEARS)
+
+      // Years after depletion should have £0 drawdowns
+      const yearAfterDepletion = result.plan.get(depletionYear + 1)
+      expect(yearAfterDepletion).toBeDefined()
+      expect(yearAfterDepletion!.pcls).toBe(0)
+      expect(yearAfterDepletion!.sipp).toBe(0)
     })
 
-    it('different depletion years produce different plan lengths', () => {
+    it('different depletion years produce different withdrawal patterns', () => {
       const config2050: OptimizerConfig = {
         ...DEFAULT_OPTIMIZER_CONFIG,
         sippDepletionYear: 2050,
@@ -81,17 +88,23 @@ describe('calculateBiasedDrawdownPlan', () => {
         config2060
       )
 
-      // Different depletion years produce different plan lengths
-      expect(result2050.plan.size).toBe(2050 - START_YEAR)
-      expect(result2060.plan.size).toBe(2060 - START_YEAR)
-      expect(result2050.plan.size).toBeLessThan(result2060.plan.size)
+      // Both plans cover all years (to override defaults)
+      expect(result2050.plan.size).toBe(TOTAL_YEARS)
+      expect(result2060.plan.size).toBe(TOTAL_YEARS)
+
+      // Year 2055 should have £0 drawdowns for 2050 plan (after depletion)
+      // but non-zero for 2060 plan (still within depletion period)
+      const year2055_in_2050plan = result2050.plan.get(2055)
+      const year2055_in_2060plan = result2060.plan.get(2055)
+      expect(year2055_in_2050plan!.sipp).toBe(0)
+      expect(year2055_in_2060plan!.sipp).toBeGreaterThan(0)
 
       // Both should still hit target remainder
       expect(result2050.projectedSippAtDepletion).toBeGreaterThan(95000)
       expect(result2060.projectedSippAtDepletion).toBeGreaterThan(95000)
     })
 
-    it('different remainder targets produce different withdrawal rates', () => {
+    it('different remainder targets produce different final SIPP balances', () => {
       const configHighRemainder: OptimizerConfig = {
         ...DEFAULT_OPTIMIZER_CONFIG,
         sippRemainder: 200000,
@@ -114,8 +127,14 @@ describe('calculateBiasedDrawdownPlan', () => {
         configLowRemainder
       )
 
-      // Higher remainder = lower withdrawals (keeping more in pot)
-      expect(resultHigh.baseIncome).toBeLessThan(resultLow.baseIncome)
+      // Both should hit their respective targets
+      expect(resultHigh.projectedSippAtDepletion).toBeGreaterThan(195000)
+      expect(resultHigh.projectedSippAtDepletion).toBeLessThan(205000)
+      expect(resultLow.projectedSippAtDepletion).toBeGreaterThan(45000)
+      expect(resultLow.projectedSippAtDepletion).toBeLessThan(55000)
+
+      // Higher remainder target = higher final SIPP
+      expect(resultHigh.projectedSippAtDepletion).toBeGreaterThan(resultLow.projectedSippAtDepletion)
     })
   })
 
